@@ -176,6 +176,7 @@ void xmodem_run_recv(xmodem_block_writer writer, xmodem_block_writer_finish wrf,
 				}
 			}
 		}
+		xmodem_recv_ack();
 	}
 End:
 	ws_hwint_ack(0xFF);
