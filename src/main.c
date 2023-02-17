@@ -93,7 +93,9 @@ void xmodem_run_send(xmodem_block_reader reader, uint16_t blocks, uint16_t subbl
 					if (!(isb % subblock_mask)) ws_screen_put(SCREEN1, SCR_ENTRY_PALETTE(COLOR_YELLOW) | 0x0A, 1 + (isb / subblock_mask), 12);
 				}
 
+				ws_hwint_disable(HWINT_VBLANK);
 				uint8_t result = xmodem_send_block(reader(ib, isb));
+				ws_hwint_enable(HWINT_VBLANK);
 				switch (result) {
 				case XMODEM_OK:
 					break;
@@ -106,7 +108,9 @@ void xmodem_run_send(xmodem_block_reader reader, uint16_t blocks, uint16_t subbl
 				}
 			}
 		}
+		ws_hwint_disable(HWINT_VBLANK);
 		xmodem_send_finish();
+		ws_hwint_enable(HWINT_VBLANK);
 	}
 End:
 	xmodem_close();

@@ -27,6 +27,7 @@
 #include <stdint.h>
 #include <wonderful.h>
 #include <ws.h>
+#include "input.h"
 #include "xmodem.h"
 
 #define SOH 1
@@ -38,9 +39,8 @@
 static uint8_t xmodem_idx;
 
 bool xmodem_poll_exit(void) {
-	//input_update();
-	//return (input_pressed & KEY_B);
 	return false;
+	// return ((input_keys | input_pressed) & KEY_B);
 }
 
 void xmodem_open(uint8_t baudrate) {
@@ -152,6 +152,7 @@ uint8_t xmodem_send_start(void) {
 
 		ws_hwint_enable(HWINT_SERIAL_RX);
 		cpu_halt();
+		ws_hwint_disable(HWINT_SERIAL_RX);
 	}
 	return XMODEM_SELF_CANCEL;
 }
@@ -177,6 +178,7 @@ WriteAgain:
 
 		ws_hwint_enable(HWINT_SERIAL_RX);
 		cpu_halt();
+		ws_hwint_disable(HWINT_SERIAL_RX);
 	}
 	return XMODEM_SELF_CANCEL;
 }
@@ -201,6 +203,7 @@ WriteAgain:
 
 		ws_hwint_enable(HWINT_SERIAL_RX);
 		cpu_halt();
+		ws_hwint_disable(HWINT_SERIAL_RX);
 	}
 	return XMODEM_SELF_CANCEL;
 }

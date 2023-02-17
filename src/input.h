@@ -21,7 +21,7 @@
 #include <stdint.h>
 #include <ws.h>
 
-extern uint16_t input_pressed, input_held;
+extern uint16_t input_keys, input_pressed, input_held;
 
 #define KEY_UP KEY_X1
 #define KEY_DOWN KEY_X3
