@@ -73,9 +73,8 @@ void xmodem_run_send(xmodem_block_reader reader, uint16_t blocks, uint16_t subbl
 	uint16_t block_mask = (blocks >> 4); if(block_mask < 1) block_mask = 1;
 	uint16_t subblock_mask = (subblocks >> 4); if(subblock_mask < 1) subblock_mask = 1;
 
-	xmodem_status(msg_xmodem_init);
-	xmodem_open_default();
 	if (xmodem_send_start() == XMODEM_OK) {
+		cpu_irq_disable();
 		xmodem_status(msg_xmodem_progress);
 		ui_clear_lines(11, 11);
 		ui_printf(18, 11, COLOR_WHITE, msg_xmodem_blocks_full, blocks);
@@ -93,14 +92,14 @@ void xmodem_run_send(xmodem_block_reader reader, uint16_t blocks, uint16_t subbl
 					if (!(isb % subblock_mask)) ws_screen_put(SCREEN1, SCR_ENTRY_PALETTE(COLOR_YELLOW) | 0x0A, 1 + (isb / subblock_mask), 12);
 				}
 
-				ws_hwint_disable(HWINT_VBLANK);
 				uint8_t result = xmodem_send_block(reader(ib, isb));
-				ws_hwint_enable(HWINT_VBLANK);
 				switch (result) {
 				case XMODEM_OK:
 					break;
 				case XMODEM_ERROR:
 					xmodem_status(msg_xmodem_transfer_error);
+					ws_hwint_ack(0xFF);
+					cpu_irq_enable();
 					input_wait_clear(); while (input_pressed == 0) { wait_for_vblank(); input_update(); } input_wait_clear();
 				case XMODEM_SELF_CANCEL:
 				case XMODEM_CANCEL:
@@ -108,11 +107,11 @@ void xmodem_run_send(xmodem_block_reader reader, uint16_t blocks, uint16_t subbl
 				}
 			}
 		}
-		ws_hwint_disable(HWINT_VBLANK);
 		xmodem_send_finish();
-		ws_hwint_enable(HWINT_VBLANK);
 	}
 End:
+	ws_hwint_ack(0xFF);
+	cpu_irq_enable();
 	xmodem_close();
 	ui_clear_lines(3, 17);
 }
@@ -163,13 +162,15 @@ void xmodem_run_recv(xmodem_block_writer writer, xmodem_block_writer_finish wrf,
 						xmodem_recv_start();
 					}
 					uint8_t result = xmodem_recv_block(block_buffer);
-					switch (result) {					
+					switch (result) {
 					case XMODEM_OK:
 						wrf(ib, isb);
 						if(!erase) ack_previous = true;
 						break;
 					case XMODEM_ERROR:
 						xmodem_status(msg_xmodem_transfer_error);
+						ws_hwint_ack(0xFF);
+						cpu_irq_enable();
 						input_wait_clear(); while (input_pressed == 0) { wait_for_vblank(); input_update(); } input_wait_clear();
 					case XMODEM_SELF_CANCEL:
 					case XMODEM_CANCEL:
@@ -272,11 +273,11 @@ const uint8_t __far* xmb_ipl_read(uint16_t block, uint16_t subblock) {
 	return MK_FP(0xFE00, block << 7);
 }
 
-// block: bank; subblock: 128 bytes
+// block: bank (64kbytes); subblock: 128 bytes
 const uint8_t __far* xmb_rom_read(uint16_t block, uint16_t subblock) {
 	if (subblock == 0) {
 		uint16_t bank = xmb_offset + block;
-		outportw(IO_BANK_2003_ROM0, bank);
+		if (xmb_mode) outportw(IO_BANK_2003_ROM0, bank);
 		outportb(IO_BANK_ROM0, bank);
 	}
 	return MK_FP(0x2000, subblock << 7);
@@ -285,16 +286,16 @@ const uint8_t __far* xmb_rom_read(uint16_t block, uint16_t subblock) {
 // block: 8kbytes; subblock: 128 bytes
 uint8_t __far* xmb_sram_read(uint16_t block, uint16_t subblock) {
 	uint16_t bank = block >> 3;
-	uint16_t kbyte = block & 0x07;
-	if (kbyte == 0) {
+	uint16_t subbank = block & 0x07; /* 8KB units */
+	if (subbank == 0) {
 		bank += xmb_offset;
-		outportw(IO_BANK_2003_RAM, bank);
+		if(xmb_mode) outportw(IO_BANK_2003_RAM, bank);
 		outportb(IO_BANK_RAM, bank);
 	}
-	return MK_FP(0x1000 | (kbyte << 9), subblock << 7);
+	return MK_FP(0x1000 | (subbank << 9), subblock << 7);
 }
 
-// block: eeprom 128b
+// block: eeprom 128b, no subblocks
 const uint8_t __far* xmb_eeprom_read(uint16_t block, uint16_t subblock) {
 	ws_eeprom_handle_t h = ws_eeprom_handle_cartridge(xmb_offset);
 	uint16_t *ptr = (uint16_t*) xmb_buffer;
@@ -359,9 +360,12 @@ void menu_backup(bool restore, bool erase) {
 	state.entries = entries; state.entry_count = entry_count;	
 	ui_menu_init(&state);
 
-	// determine banks
+	// determine banks, reset
 	outportw(IO_BANK_2003_ROM0, 0xFFFF);
 	outportb(IO_BANK_ROM0, 0xFF);
+	outportw(IO_BANK_2003_RAM, 0xFFFF);
+	outportb(IO_BANK_RAM, 0xFF);
+
 	switch (*((uint8_t __far*) MK_FP(0x2FFF, 0xA))) {
 	case 0: rom_banks = 2; break;
 	case 1: rom_banks = 4; break;
@@ -401,47 +405,47 @@ void menu_backup(bool restore, bool erase) {
 			if ((result & 0xFF) > 3) result++;
 		}
 		switch (result & 0xFF) {
-		case 0:
+		case 0: {
 			menu_manip_value(&rom_banks, result, 1, 1024,
 				rom_banks >> 1, rom_banks << 1,
 				rom_banks - 1, rom_banks + 1,
 				rom_banks - 16, rom_banks + 16);
-			break;
-		case 1:
+		} break;
+		case 1: {
 			menu_manip_value(&sram_kbytes, result, 8, 65536,
 				sram_kbytes >> 1, sram_kbytes << 1,
 				sram_kbytes - 8, sram_kbytes + 8,
 				sram_kbytes - 64, sram_kbytes + 64);
-			break;
-		case 2:
+		} break;
+		case 2: {
 			menu_manip_value(&eeprom_bytes, result, 128, 2048,
 				eeprom_bytes >> 1, eeprom_bytes << 1,
 				0, 0, 0, 0);
-			break;
-		case 4:
+		} break;
+		case 4: {
 			xmb_offset = (rom_banks ^ 0xFFFF) + 1;
 			if (!restore) {
 				xmodem_run_send(xmb_rom_read, rom_banks, 512);
 			}
-			break;
-		case 5:
-			xmb_offset = ((sram_kbytes >> 6) ^ 0xFFFF) + 1;
+		} break;
+		case 5: {
+			uint16_t sram_banks = ((sram_kbytes + 63) >> 6);
+			xmb_offset = (sram_banks ^ 0xFFFF) + 1;
 			if (!restore) {
 				xmodem_run_send(xmb_sram_read, sram_kbytes >> 3, 64);
 			} else {
 				xmodem_run_recv(xmb_sram_read, xmb_noop_write_finish, sram_kbytes >> 3, 64, erase);
 			}
-			break;
-		case 6:
+		} break;
+		case 6: {
 			xmb_offset = eeprom_bytes <= 128 ? 6 : (eeprom_bytes <= 512 ? 8 : 10);
 			if (!restore) {
 				xmodem_run_send(xmb_eeprom_read, eeprom_bytes >> 7, 1);
 			} else {
 				xmodem_run_recv(xmb_eeprom_write, xmb_eeprom_write_finish, eeprom_bytes >> 7, 1, erase);
 			}
-			break;
-		case 7:
-			return;
+		} break;
+		case 7: return;
 		}
 	}
 }
@@ -604,7 +608,7 @@ void menu_main(void) {
 	}
 }
 
-static const char __far msg_title[] = "-= WS Backup Tool v0.1 =-";
+static const char __far msg_title[] = "-= WS Backup Tool v0.1.1 =-";
 
 int main(void) {
 	cpu_irq_disable();
@@ -617,7 +621,7 @@ int main(void) {
 	ws_hwint_enable(HWINT_VBLANK);
 	cpu_irq_enable();
 
-	ui_puts(2, 1, 0, msg_title);
+	ui_puts((29 - strlen(msg_title)) >> 1, 1, 0, msg_title);
 
 	while(1) menu_main();
 }
