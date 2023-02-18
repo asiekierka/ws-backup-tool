@@ -424,6 +424,7 @@ void menu_backup(bool restore, bool erase) {
 		} break;
 		case 4: {
 			xmb_offset = (rom_banks ^ 0xFFFF) + 1;
+			xmb_mode = rom_banks > 256 ? 1 : 0;
 			if (!restore) {
 				xmodem_run_send(xmb_rom_read, rom_banks, 512);
 			}
@@ -431,6 +432,7 @@ void menu_backup(bool restore, bool erase) {
 		case 5: {
 			uint16_t sram_banks = ((sram_kbytes + 63) >> 6);
 			xmb_offset = (sram_banks ^ 0xFFFF) + 1;
+			xmb_mode = sram_banks > 256 ? 1 : 0;
 			if (!restore) {
 				xmodem_run_send(xmb_sram_read, sram_kbytes >> 3, 64);
 			} else {
