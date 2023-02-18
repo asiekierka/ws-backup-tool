@@ -184,7 +184,7 @@ void xmodem_run_recv(xmodem_block_writer writer, xmodem_block_writer_finish wrf,
 				}
 			}
 		}
-		xmodem_recv_ack();
+		if(!erase) xmodem_recv_ack();
 	}
 End:
 	ws_hwint_ack(0xFF);
@@ -613,7 +613,7 @@ void menu_main(void) {
 	}
 }
 
-static const char __far msg_title[] = "-= WS Backup Tool v0.1.2 =-";
+static const char __far msg_title[] = "-= WS Backup Tool v0.1.3 =-";
 
 int main(void) {
 	cpu_irq_disable();
