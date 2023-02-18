@@ -73,6 +73,9 @@ void xmodem_run_send(xmodem_block_reader reader, uint16_t blocks, uint16_t subbl
 	uint16_t block_mask = (blocks >> 4); if(block_mask < 1) block_mask = 1;
 	uint16_t subblock_mask = (subblocks >> 4); if(subblock_mask < 1) subblock_mask = 1;
 
+	xmodem_status(msg_xmodem_init);
+	xmodem_open_default();
+
 	if (xmodem_send_start() == XMODEM_OK) {
 		cpu_irq_disable();
 		xmodem_status(msg_xmodem_progress);
@@ -423,7 +426,7 @@ void menu_backup(bool restore, bool erase) {
 				0, 0, 0, 0);
 		} break;
 		case 4: {
-			xmb_offset = (rom_banks ^ 0xFFFF) + 1;
+			xmb_offset = -rom_banks;
 			xmb_mode = rom_banks > 256 ? 1 : 0;
 			if (!restore) {
 				xmodem_run_send(xmb_rom_read, rom_banks, 512);
@@ -431,7 +434,7 @@ void menu_backup(bool restore, bool erase) {
 		} break;
 		case 5: {
 			uint16_t sram_banks = ((sram_kbytes + 63) >> 6);
-			xmb_offset = (sram_banks ^ 0xFFFF) + 1;
+			xmb_offset = -sram_banks;
 			xmb_mode = sram_banks > 256 ? 1 : 0;
 			if (!restore) {
 				xmodem_run_send(xmb_sram_read, sram_kbytes >> 3, 64);
@@ -610,7 +613,7 @@ void menu_main(void) {
 	}
 }
 
-static const char __far msg_title[] = "-= WS Backup Tool v0.1.1 =-";
+static const char __far msg_title[] = "-= WS Backup Tool v0.1.2 =-";
 
 int main(void) {
 	cpu_irq_disable();

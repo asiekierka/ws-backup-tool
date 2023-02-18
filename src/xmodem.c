@@ -49,6 +49,7 @@ void xmodem_open(uint8_t baudrate) {
 }
 
 void xmodem_close(void) {
+        while (!ws_serial_is_writable()) { } 
 	ws_serial_close();
 }
 
