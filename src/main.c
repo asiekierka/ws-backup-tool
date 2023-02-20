@@ -103,7 +103,7 @@ void xmodem_run_send(xmodem_block_reader reader, uint16_t blocks, uint16_t subbl
 					xmodem_status(msg_xmodem_transfer_error);
 					ws_hwint_ack(0xFF);
 					cpu_irq_enable();
-					input_wait_clear(); while (input_pressed == 0) { wait_for_vblank(); input_update(); } input_wait_clear();
+					wait_for_keypress();
 				case XMODEM_SELF_CANCEL:
 				case XMODEM_CANCEL:
 					goto End;
@@ -174,7 +174,7 @@ void xmodem_run_recv(xmodem_block_writer writer, xmodem_block_writer_finish wrf,
 						xmodem_status(msg_xmodem_transfer_error);
 						ws_hwint_ack(0xFF);
 						cpu_irq_enable();
-						input_wait_clear(); while (input_pressed == 0) { wait_for_vblank(); input_update(); } input_wait_clear();
+						wait_for_keypress();
 					case XMODEM_SELF_CANCEL:
 					case XMODEM_CANCEL:
 						goto End;
@@ -270,6 +270,10 @@ static const char __far msg_return[] = "\x1b Return";
 uint16_t xmb_offset;
 uint8_t xmb_mode;
 uint8_t xmb_buffer[128];
+
+void wait_for_keypress(void) {
+	input_wait_clear(); while (input_pressed == 0) { wait_for_vblank(); input_update(); } input_wait_clear();
+}
 
 // block: 128 bytes
 const uint8_t __far* xmb_ipl_read(uint16_t block, uint16_t subblock) {
@@ -589,12 +593,27 @@ uint16_t menu_show_main(void) {
 	return result;
 }
 
+static const char __far msg_ipl_locked[] = "IPL locked - cannot transfer. Make sure to launch WS Backup Tool using installed BootFriend or another method which preserves an unlocked IPL.";
+
+bool check_transfer_ipl(void) {
+	bool ipl_locked = inportb(IO_SYSTEM_CTRL1) & SYSTEM_CTRL1_IPL_LOCKED;
+	if (ipl_locked) {
+		ui_clear_lines(3, 17);
+		ui_puts(0, 6, COLOR_RED, msg_ipl_locked);
+		wait_for_keypress();
+		ui_clear_lines(3, 17);
+	}
+	return !ipl_locked;
+}
+
 void menu_main(void) {
 	input_wait_clear();
 	uint16_t result = menu_show_main();
 	switch (result) {
 	case 0: // IPL transfer
-		xmodem_run_send(xmb_ipl_read, 64, 1);
+		if (check_transfer_ipl()) {
+			xmodem_run_send(xmb_ipl_read, 64, 1);
+		}
 		break;
 	case 1: // Cart Backup
 		menu_backup(false, false);
