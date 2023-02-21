@@ -632,7 +632,7 @@ void menu_main(void) {
 	}
 }
 
-static const char __far msg_title[] = "-= WS Backup Tool v0.1.3 =-";
+static const char __far msg_title[] = "-= WS Backup Tool v0.1.4 =-";
 
 int main(void) {
 	cpu_irq_disable();
