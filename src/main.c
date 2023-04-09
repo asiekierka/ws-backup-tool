@@ -255,6 +255,12 @@ static const char __far msg_rom_half[] = "ROM: %ld.5 Mbit";
 static const char __far msg_sram[] = "SRAM: %ld Kbyte";
 static const char __far msg_eeprom[] = "EEPROM: %ld bytes";
 
+static const char __far msg_wait_3c[] = "Wait: 3 cycles";
+static const char __far msg_wait_1c[] = "Wait: 1 cycle ";
+
+static const char __far msg_access_8bit[] = "Access: .8-bit";
+static const char __far msg_access_16bit[] = "Access: 16-bit";
+
 static const char __far msg_backup_rom[] = "Backup ROM...";
 static const char __far msg_backup_sram[] = "Backup SRAM...";
 static const char __far msg_backup_eeprom[] = "Backup EEPROM...";
@@ -329,9 +335,9 @@ void xmb_eeprom_write_finish(uint16_t block, uint16_t subblock) {
 }
 
 void menu_backup(bool restore, bool erase) {
-	char buf_rom[20], buf_sram[20], buf_eeprom[20];
+	char buf_rom[21], buf_sram[21], buf_eeprom[21], buf_wait[15], buf_access[15];
 	menu_state_t state;
-	menu_entry_t entries[9];
+	menu_entry_t entries[11];
 	uint8_t entry_count = 0;
 
 	uint32_t rom_banks = 256;
@@ -347,6 +353,10 @@ void menu_backup(bool restore, bool erase) {
 	entries[entry_count++].flags = MENU_ENTRY_ADJUSTABLE | MENU_ENTRY_ADJUSTABLE_ADV;
 	entries[entry_count].text = buf_eeprom;
 	entries[entry_count++].flags = MENU_ENTRY_ADJUSTABLE;
+	entries[entry_count].text = buf_wait;
+	entries[entry_count++].flags = 0;
+	entries[entry_count].text = buf_access;
+	entries[entry_count++].flags = 0;
 	entries[entry_count].text = msg_none;
 	entries[entry_count++].flags = MENU_ENTRY_DISABLED;
 	if (!restore) {
@@ -364,7 +374,7 @@ void menu_backup(bool restore, bool erase) {
 	}
 	entries[entry_count].text = msg_return;
 	entries[entry_count++].flags = 0;
-	state.entries = entries; state.entry_count = entry_count;	
+	state.entries = entries; state.entry_count = entry_count;
 	ui_menu_init(&state);
 
 	// determine banks, reset
@@ -405,11 +415,13 @@ void menu_backup(bool restore, bool erase) {
 		}
 		npf_snprintf(buf_sram, sizeof(buf_sram), msg_sram, sram_kbytes);
 		npf_snprintf(buf_eeprom, sizeof(buf_eeprom), msg_eeprom, eeprom_bytes);
+		strcpy(buf_wait, (inportb(0xA0) & 0x08) ? msg_wait_3c : msg_wait_1c);
+		strcpy(buf_access, (inportb(0xA0) & 0x04) ? msg_access_16bit : msg_access_8bit);
 
 		uint16_t result = ui_menu_run(&state, 3 + ((14 - entry_count) >> 1));
 		if (restore) {
 			result++;
-			if ((result & 0xFF) > 3) result++;
+			if ((result & 0xFF) > 5) result++;
 		}
 		switch (result & 0xFF) {
 		case 0: {
@@ -429,14 +441,20 @@ void menu_backup(bool restore, bool erase) {
 				eeprom_bytes >> 1, eeprom_bytes << 1,
 				0, 0, 0, 0);
 		} break;
+		case 3: {
+			outportb(0xA0, inportb(0xA0) ^ 0x08);
+		} break;
 		case 4: {
+			outportb(0xA0, inportb(0xA0) ^ 0x04);
+		} break;
+		case 6: {
 			xmb_offset = -rom_banks;
 			xmb_mode = rom_banks > 256 ? 1 : 0;
 			if (!restore) {
 				xmodem_run_send(xmb_rom_read, rom_banks, 512);
 			}
 		} break;
-		case 5: {
+		case 7: {
 			uint16_t sram_banks = ((sram_kbytes + 63) >> 6);
 			xmb_offset = -sram_banks;
 			xmb_mode = sram_banks > 256 ? 1 : 0;
@@ -446,7 +464,7 @@ void menu_backup(bool restore, bool erase) {
 				xmodem_run_recv(xmb_sram_read, xmb_noop_write_finish, sram_kbytes >> 3, 64, erase);
 			}
 		} break;
-		case 6: {
+		case 8: {
 			xmb_offset = eeprom_bytes <= 128 ? 6 : (eeprom_bytes <= 512 ? 8 : 10);
 			if (!restore) {
 				xmodem_run_send(xmb_eeprom_read, eeprom_bytes >> 7, 1);
@@ -454,7 +472,7 @@ void menu_backup(bool restore, bool erase) {
 				xmodem_run_recv(xmb_eeprom_write, xmb_eeprom_write_finish, eeprom_bytes >> 7, 1, erase);
 			}
 		} break;
-		case 7: return;
+		case 9: return;
 		}
 	}
 }
@@ -599,7 +617,7 @@ bool check_transfer_ipl(void) {
 	bool ipl_locked = inportb(IO_SYSTEM_CTRL1) & SYSTEM_CTRL1_IPL_LOCKED;
 	if (ipl_locked) {
 		ui_clear_lines(3, 17);
-		ui_puts(0, 6, COLOR_RED, msg_ipl_locked);
+		ui_puts(0, 7, COLOR_RED, msg_ipl_locked);
 		wait_for_keypress();
 		ui_clear_lines(3, 17);
 	}
@@ -632,7 +650,7 @@ void menu_main(void) {
 	}
 }
 
-static const char __far msg_title[] = "-= WS Backup Tool v0.1.4 =-";
+static const char __far msg_title[] = "-= WS Backup Tool v0.1.5 =-";
 
 int main(void) {
 	cpu_irq_disable();
