@@ -1,52 +1,134 @@
-ifndef WONDERFUL_TOOLCHAIN
-$(error Please define WONDERFUL_TOOLCHAIN to point to the location of the Wonderful toolchain.)
+# SPDX-License-Identifier: CC0-1.0
+#
+# SPDX-FileContributor: Adrian "asie" Siekierka, 2023
+
+WONDERFUL_TOOLCHAIN ?= /opt/wonderful
+TARGET ?= wswan/bootfriend
+include $(WONDERFUL_TOOLCHAIN)/target/$(TARGET)/makedefs.mk
+
+# Metadata
+# --------
+
+NAME		:= ws-backup-tool
+
+# Source code paths
+# -----------------
+
+INCLUDEDIRS	:= src
+SOURCEDIRS	:= src
+CBINDIRS	:= res
+
+# Defines passed to all files
+# ---------------------------
+
+DEFINES		:=
+
+# Libraries
+# ---------
+
+LIBS		:= -lwsx -lws
+LIBDIRS		:= $(WF_TARGET_DIR)
+
+# Build artifacts
+# ---------------
+
+BUILDDIR	:= build
+ELF		:= build/$(NAME).elf
+MAP		:= build/$(NAME).map
+EXECUTABLE	:= $(NAME).bfb
+
+# Verbose flag
+# ------------
+
+ifeq ($(V),1)
+_V		:=
+else
+_V		:= @
 endif
 
-include $(WONDERFUL_TOOLCHAIN)/i8086/wswan.mk
+# Source files
+# ------------
 
-OBJDIR := obj_wswan
-MKDIRS := $(OBJDIR)
-LIBS := -lws -lc -lgcc
-CFLAGS += -Os -fno-jump-tables -ffunction-sections
-LDFLAGS += -Wl,--gc-sections -Wl,--print-gc-sections
-SLFLAGS := --heap-length 0x1800 --color --rom-size 2
-TARGET := ws-backup-tool.bfb
-TARGET_ROM := ws-backup-tool.wsc
+ifneq ($(CBINDIRS),)
+    SOURCES_CBIN	:= $(shell find -L $(CBINDIRS) -name "*.bin")
+    INCLUDEDIRS		+= $(addprefix $(BUILDDIR)/,$(CBINDIRS))
+endif
+SOURCES_S	:= $(shell find -L $(SOURCEDIRS) -name "*.s")
+SOURCES_C	:= $(shell find -L $(SOURCEDIRS) -name "*.c")
 
-SRCDIRS := res src
-CSOURCES := $(foreach dir,$(SRCDIRS),$(notdir $(wildcard $(dir)/*.c)))
-ASMSOURCES := $(foreach dir,$(SRCDIRS),$(notdir $(wildcard $(dir)/*.S)))
-OBJECTS := $(CSOURCES:%.c=$(OBJDIR)/%.o) $(ASMSOURCES:%.S=$(OBJDIR)/%.o)
+# Compiler and linker flags
+# -------------------------
 
-CFLAGS += -Ires -Isrc
+WARNFLAGS	:= -Wall
 
-DEPS := $(OBJECTS:.o=.d)
-CFLAGS += -MMD -MP
+INCLUDEFLAGS	:= $(foreach path,$(INCLUDEDIRS),-I$(path)) \
+		   $(foreach path,$(LIBDIRS),-I$(path)/include)
 
-vpath %.c $(SRCDIRS)
-vpath %.S $(SRCDIRS)
+LIBDIRSFLAGS	:= $(foreach path,$(LIBDIRS),-L$(path)/lib)
 
-.PHONY: all clean install
+ASFLAGS		+= -x assembler-with-cpp $(DEFINES) $(WF_ARCH_CFLAGS) \
+		   $(INCLUDEFLAGS) -ffunction-sections
 
-all: $(TARGET_ROM) $(TARGET)
+CFLAGS		+= -std=gnu11 $(WARNFLAGS) $(DEFINES) $(WF_ARCH_CFLAGS) \
+		   $(INCLUDEFLAGS) -ffunction-sections -Os
 
-$(TARGET_ROM): $(OBJECTS)
-	$(SWANLINK) -v -o $@ --output-elf $@.elf $(SLFLAGS) --linker-args $(LDFLAGS) $(WF_CRT0) $(OBJECTS) $(LIBS)
+LDFLAGS		:= -T$(WF_LDSCRIPT) \
+		   $(LIBDIRSFLAGS) -Wl,-Map,$(MAP) -Wl,--gc-sections \
+		   $(WF_ARCH_LDFLAGS) $(LIBS)
 
-$(TARGET): $(OBJECTS)
-	$(SWANLINK) -v -o $@ -t bootfriend_binary --output-elf $@.elf $(SLFLAGS) --linker-args $(LDFLAGS) $(WF_CRT0) $(OBJECTS) $(LIBS)
+# Intermediate build files
+# ------------------------
 
-$(OBJDIR)/%.o: %.c | $(OBJDIR)
-	$(CC) $(CFLAGS) -c -o $@ $<
+OBJS_ASSETS	:= $(addsuffix .o,$(addprefix $(BUILDDIR)/,$(SOURCES_CBIN)))
 
-$(OBJDIR)/%.o: %.S | $(OBJDIR)
-	$(CC) $(CFLAGS) -c -o $@ $<
+HEADERS_ASSETS	:= $(patsubst %.bin,%_bin.h,$(addprefix $(BUILDDIR)/,$(SOURCES_CBIN)))
 
-$(OBJDIR):
-	$(info $(shell mkdir -p $(MKDIRS)))
+OBJS_SOURCES	:= $(addsuffix .o,$(addprefix $(BUILDDIR)/,$(SOURCES_S))) \
+		   $(addsuffix .o,$(addprefix $(BUILDDIR)/,$(SOURCES_C)))
+
+OBJS		:= $(OBJS_ASSETS) $(OBJS_SOURCES)
+
+DEPS		:= $(OBJS:.o=.d)
+
+# Targets
+# -------
+
+.PHONY: all clean
+
+all: $(EXECUTABLE)
+
+$(EXECUTABLE): $(ELF)
+	@echo "  OBJCOPY $@"
+	$(_V)$(OBJCOPY) -O binary $< $@
+
+$(ELF): $(OBJS)
+	@echo "  LD      $@"
+	$(_V)$(CC) -o $@ $(OBJS) $(WF_CRT0) $(LDFLAGS)
 
 clean:
-	rm -r $(OBJDIR)/*
-	rm $(TARGET)
+	@echo "  CLEAN"
+	$(_V)$(RM) $(EXECUTABLE) $(BUILDDIR)
+
+# Rules
+# -----
+
+$(BUILDDIR)/%.s.o : %.s
+	@echo "  AS      $<"
+	@$(MKDIR) -p $(@D)
+	$(_V)$(CC) $(ASFLAGS) -MMD -MP -c -o $@ $<
+
+$(BUILDDIR)/%.c.o : %.c
+	@echo "  CC      $<"
+	@$(MKDIR) -p $(@D)
+	$(_V)$(CC) $(CFLAGS) -MMD -MP -c -o $@ $<
+
+$(BUILDDIR)/%.bin.o $(BUILDDIR)/%_bin.h : %.bin
+	@echo "  BIN2C   $<"
+	@$(MKDIR) -p $(@D)
+	$(_V)$(WF)/bin/wf-bin2c -a 2 $(@D) $<
+	$(_V)$(CC) $(CFLAGS) -MMD -MP -c -o $(BUILDDIR)/$*.bin.o $(BUILDDIR)/$*_bin.c
+
+# Include dependency files if they exist
+# --------------------------------------
 
 -include $(DEPS)

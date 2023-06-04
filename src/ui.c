@@ -16,14 +16,13 @@
  */
 
 #include <stdbool.h>
+#include <stdio.h>
 #include <string.h>
 #include <ws.h>
 #include "input.h"
 #include "ui.h"
-#include "font_default.h"
-#include "nanoprintf.h"
+#include "font_default_bin.h"
 #include "util.h"
-#include "ws/display.h"
 
 static bool ui_is_space(char c) {
     return c == 0 || c == '\n' || c == 32;
@@ -71,7 +70,7 @@ void ui_printf(uint8_t x, uint8_t y, uint8_t color, const char __far* format, ..
     char buf[128];
     va_list val;
     va_start(val, format);
-    npf_vsnprintf(buf, sizeof(buf), format, val);
+    vsnprintf(buf, sizeof(buf), format, val);
     va_end(val);
 
     ui_puts(x, y, color, buf);
@@ -83,9 +82,9 @@ void ui_init(void) {
         while(1) cpu_halt();
     }
 
-    const uint8_t __far *src = _font_default_bin;
+    const uint8_t __far *src = font_default;
     uint16_t *dst = (uint16_t*) 0x2000;
-    for (int i = 0; i < _font_default_bin_size; i++) {
+    for (int i = 0; i < font_default_size; i++) {
         *(dst++) = *(src++);
     }
 
@@ -110,7 +109,7 @@ void ui_init(void) {
 static void ui_menu_draw_entry(menu_entry_t *entry, uint8_t y, bool selected) {
     uint8_t color = selected ? COLOR_SELECTED : (entry->flags & MENU_ENTRY_DISABLED ? COLOR_GRAY : COLOR_BLACK);
     uint16_t prefix = SCR_ENTRY_PALETTE(color);
-    ws_screen_fill(SCREEN1, SCR_ENTRY_PALETTE(color), 0, y, 28, 1);
+    ws_screen_fill_tiles(SCREEN1, SCR_ENTRY_PALETTE(color), 0, y, 28, 1);
     ui_puts((28 - strlen(entry->text) + 1) >> 1, y, color, entry->text);
 }
 

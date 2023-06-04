@@ -17,45 +17,36 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <wonderful.h>
 #include <ws.h>
 #include "flash.h"
-#include "font_default.h"
+#include "font_default_bin.h"
 #include "input.h"
-#include "nanoprintf.h"
 #include "ui.h"
 #include "util.h"
-#include "wonderful-asm-common.h"
-#include "ws/display.h"
-#include "ws/eeprom.h"
-#include "ws/hardware.h"
 #include "xmodem.h"
 
 volatile uint16_t vbl_ticks;
 volatile uint8_t xm_baudrate;
 
-__attribute__((interrupt))
-void vblank_int_handler(void) {
-	vbl_ticks++;
-	vblank_input_update();
-	ws_hwint_ack(HWINT_VBLANK);
-}
+extern void vblank_int_handler(void);
 
-static const char __far msg_are_you_sure[] = "Are you sure?";
-static const char __far msg_yes[] = "Yes";
-static const char __far msg_no[] = "No";
+static const char msg_are_you_sure[] = "Are you sure?";
+static const char msg_yes[] = "Yes";
+static const char msg_no[] = "No";
 
 static inline void xmodem_open_default() {
 	xmodem_open(xm_baudrate);
 }
 
-static const char __far msg_xmodem_init[] = "Initializing XMODEM transfer";
-static const char __far msg_xmodem_progress[] = "Transferring data";
-static const char __far msg_erase_progress[] = "Erasing data";
-static const char __far msg_xmodem_transfer_error[] = "Transfer error";
-static const char __far msg_xmodem_blocks_full[] = "0000/%04d";
+static const char msg_xmodem_init[] = "Initializing XMODEM transfer";
+static const char msg_xmodem_progress[] = "Transferring data";
+static const char msg_erase_progress[] = "Erasing data";
+static const char msg_xmodem_transfer_error[] = "Transfer error";
+static const char msg_xmodem_blocks_full[] = "0000/%04d";
 
-static void xmodem_status(const char __far *str) {
+static void xmodem_status(const char *str) {
 	ui_clear_lines(6, 6);
 	ui_puts_centered(6, COLOR_BLACK, str);
 }
@@ -63,10 +54,14 @@ static void xmodem_status(const char __far *str) {
 typedef const uint8_t __far* (*xmodem_block_reader)(uint16_t block, uint16_t subblock);
 
 static void xmodem_update_counter(uint8_t x, uint8_t y, uint16_t value) {
-	ws_screen_put(SCREEN1, (value % 10) + ((uint8_t)'0' | SCR_ENTRY_PALETTE(COLOR_WHITE)), x + 3, y); value /= 10; if (value == 0) return;
-	ws_screen_put(SCREEN1, (value % 10) + ((uint8_t)'0' | SCR_ENTRY_PALETTE(COLOR_WHITE)), x + 2, y); value /= 10; if (value == 0) return;
-	ws_screen_put(SCREEN1, (value % 10) + ((uint8_t)'0' | SCR_ENTRY_PALETTE(COLOR_WHITE)), x + 1, y); value /= 10; if (value == 0) return;
-	ws_screen_put(SCREEN1, (value % 10) + ((uint8_t)'0' | SCR_ENTRY_PALETTE(COLOR_WHITE)), x,     y);
+	ws_screen_put_tile(SCREEN1, (value % 10) + ((uint8_t)'0' | SCR_ENTRY_PALETTE(COLOR_WHITE)), x + 3, y); value /= 10; if (value == 0) return;
+	ws_screen_put_tile(SCREEN1, (value % 10) + ((uint8_t)'0' | SCR_ENTRY_PALETTE(COLOR_WHITE)), x + 2, y); value /= 10; if (value == 0) return;
+	ws_screen_put_tile(SCREEN1, (value % 10) + ((uint8_t)'0' | SCR_ENTRY_PALETTE(COLOR_WHITE)), x + 1, y); value /= 10; if (value == 0) return;
+	ws_screen_put_tile(SCREEN1, (value % 10) + ((uint8_t)'0' | SCR_ENTRY_PALETTE(COLOR_WHITE)), x,     y);
+}
+
+void wait_for_keypress(void) {
+	input_wait_clear(); while (input_pressed == 0) { wait_for_vblank(); input_update(); } input_wait_clear();
 }
 
 void xmodem_run_send(xmodem_block_reader reader, uint16_t blocks, uint16_t subblocks) {
@@ -82,7 +77,7 @@ void xmodem_run_send(xmodem_block_reader reader, uint16_t blocks, uint16_t subbl
 		ui_clear_lines(11, 11);
 		ui_printf(18, 11, COLOR_WHITE, msg_xmodem_blocks_full, blocks);
 		for (uint16_t ib = 0; ib < blocks; ib++) {
-			if (!(ib % block_mask)) ws_screen_put(SCREEN1, SCR_ENTRY_PALETTE(COLOR_RED) | 0x0A, 1 + (ib / block_mask), 11);
+			if (!(ib % block_mask)) ws_screen_put_tile(SCREEN1, SCR_ENTRY_PALETTE(COLOR_RED) | 0x0A, 1 + (ib / block_mask), 11);
 			xmodem_update_counter(18, 11, ib+1);
 			if(subblocks > 1) {
 				ui_clear_lines(12, 12);
@@ -92,7 +87,7 @@ void xmodem_run_send(xmodem_block_reader reader, uint16_t blocks, uint16_t subbl
 				// draw block update
 				if(subblocks > 1) {
 					xmodem_update_counter(18, 12, isb+1);
-					if (!(isb % subblock_mask)) ws_screen_put(SCREEN1, SCR_ENTRY_PALETTE(COLOR_YELLOW) | 0x0A, 1 + (isb / subblock_mask), 12);
+					if (!(isb % subblock_mask)) ws_screen_put_tile(SCREEN1, SCR_ENTRY_PALETTE(COLOR_YELLOW) | 0x0A, 1 + (isb / subblock_mask), 12);
 				}
 
 				uint8_t result = xmodem_send_block(reader(ib, isb));
@@ -142,7 +137,7 @@ void xmodem_run_recv(xmodem_block_writer writer, xmodem_block_writer_finish wrf,
 		ui_clear_lines(11, 11);
 		ui_printf(18, 11, COLOR_WHITE, msg_xmodem_blocks_full, blocks);
 		for (uint16_t ib = 0; ib < blocks; ib++) {
-			if (!(ib % block_mask)) ws_screen_put(SCREEN1, SCR_ENTRY_PALETTE(COLOR_RED) | 0x0A, 1 + (ib / block_mask), 11);
+			if (!(ib % block_mask)) ws_screen_put_tile(SCREEN1, SCR_ENTRY_PALETTE(COLOR_RED) | 0x0A, 1 + (ib / block_mask), 11);
 			xmodem_update_counter(18, 11, ib+1);
 			if(subblocks > 1) {
 				ui_clear_lines(12, 12);
@@ -152,7 +147,7 @@ void xmodem_run_recv(xmodem_block_writer writer, xmodem_block_writer_finish wrf,
 				// draw block update
 				if(subblocks > 1) {
 					xmodem_update_counter(18, 12, isb+1);
-					if (!(isb % subblock_mask)) ws_screen_put(SCREEN1, SCR_ENTRY_PALETTE(COLOR_YELLOW) | 0x0A, 1 + (isb / subblock_mask), 12);
+					if (!(isb % subblock_mask)) ws_screen_put_tile(SCREEN1, SCR_ENTRY_PALETTE(COLOR_YELLOW) | 0x0A, 1 + (isb / subblock_mask), 12);
 				}
 				if(erase) {
 					memset(writer(ib, isb), 0xFF, 128);
@@ -222,7 +217,7 @@ static bool menu_manip_value(uint32_t *value, uint32_t command,
 	return true;
 }
 
-bool menu_confirm(const char __far *text, uint8_t text_height, bool centered) {
+bool menu_confirm(const char *text, uint8_t text_height, bool centered) {
 	menu_state_t state;
 	menu_entry_t entries[2];
 	uint8_t height = text_height + 3;
@@ -241,45 +236,41 @@ bool menu_confirm(const char __far *text, uint8_t text_height, bool centered) {
 	return result == 1;
 }
 
-static const char __far msg_send_ipl[] = "Transfer IPL...";
-static const char __far msg_backup[] = "Cart Backup \x10";
-static const char __far msg_restore[] = "Cart Restore \x10";
-static const char __far msg_erase[] = "Cart Erase \x10";
-static const char __far msg_flash[] = "Cart Flash (Expert) \x10";
-static const char __far msg_baud_38400[] = "Serial: 38400 bps";
-static const char __far msg_baud_9600[] = "Serial: .9600 bps";
+static const char msg_send_ipl[] = "Transfer IPL...";
+static const char msg_backup[] = "Cart Backup \x10";
+static const char msg_restore[] = "Cart Restore \x10";
+static const char msg_erase[] = "Cart Erase \x10";
+static const char msg_flash[] = "Cart Flash (Expert) \x10";
+static const char msg_baud_38400[] = "Serial: 38400 bps";
+static const char msg_baud_9600[] = "Serial: .9600 bps";
 
-static const char __far msg_none[] = "";
-static const char __far msg_rom_full[] = "ROM: %ld Mbit";
-static const char __far msg_rom_half[] = "ROM: %ld.5 Mbit";
-static const char __far msg_sram[] = "SRAM: %ld Kbyte";
-static const char __far msg_eeprom[] = "EEPROM: %ld bytes";
+static const char msg_none[] = "";
+static const char msg_rom_full[] = "ROM: %ld Mbit";
+static const char msg_rom_half[] = "ROM: %ld.5 Mbit";
+static const char msg_sram[] = "SRAM: %ld Kbyte";
+static const char msg_eeprom[] = "EEPROM: %ld bytes";
 
-static const char __far msg_wait_3c[] = "Wait: 3 cycles";
-static const char __far msg_wait_1c[] = "Wait: 1 cycle ";
+static const char msg_wait_3c[] = "Wait: 3 cycles";
+static const char msg_wait_1c[] = "Wait: 1 cycle ";
 
-static const char __far msg_access_8bit[] = "Access: .8-bit";
-static const char __far msg_access_16bit[] = "Access: 16-bit";
+static const char msg_access_8bit[] = "Access: .8-bit";
+static const char msg_access_16bit[] = "Access: 16-bit";
 
-static const char __far msg_backup_rom[] = "Backup ROM...";
-static const char __far msg_backup_sram[] = "Backup SRAM...";
-static const char __far msg_backup_eeprom[] = "Backup EEPROM...";
+static const char msg_backup_rom[] = "Backup ROM...";
+static const char msg_backup_sram[] = "Backup SRAM...";
+static const char msg_backup_eeprom[] = "Backup EEPROM...";
 
-static const char __far msg_restore_sram[] = "Restore SRAM...";
-static const char __far msg_restore_eeprom[] = "Restore EEPROM...";
+static const char msg_restore_sram[] = "Restore SRAM...";
+static const char msg_restore_eeprom[] = "Restore EEPROM...";
 
-static const char __far msg_erase_sram[] = "Erase SRAM...";
-static const char __far msg_erase_eeprom[] = "Erase EEPROM...";
+static const char msg_erase_sram[] = "Erase SRAM...";
+static const char msg_erase_eeprom[] = "Erase EEPROM...";
 
-static const char __far msg_return[] = "\x1b Return";
+static const char msg_return[] = "\x1b Return";
 
 uint16_t xmb_offset;
 uint8_t xmb_mode;
 uint8_t xmb_buffer[128];
-
-void wait_for_keypress(void) {
-	input_wait_clear(); while (input_pressed == 0) { wait_for_vblank(); input_update(); } input_wait_clear();
-}
 
 // block: 128 bytes
 const uint8_t __far* xmb_ipl_read(uint16_t block, uint16_t subblock) {
@@ -411,10 +402,10 @@ void menu_backup(bool restore, bool erase) {
 	while (true) {
 		// update ROM/SRAM/EEPROM strings
 		if (!restore) {
-			npf_snprintf(buf_rom, sizeof(buf_rom), (rom_banks & 1) ? msg_rom_half : msg_rom_full, rom_banks >> 1);
+			snprintf(buf_rom, sizeof(buf_rom), (rom_banks & 1) ? msg_rom_half : msg_rom_full, rom_banks >> 1);
 		}
-		npf_snprintf(buf_sram, sizeof(buf_sram), msg_sram, sram_kbytes);
-		npf_snprintf(buf_eeprom, sizeof(buf_eeprom), msg_eeprom, eeprom_bytes);
+		snprintf(buf_sram, sizeof(buf_sram), msg_sram, sram_kbytes);
+		snprintf(buf_eeprom, sizeof(buf_eeprom), msg_eeprom, eeprom_bytes);
 		strcpy(buf_wait, (inportb(0xA0) & 0x08) ? msg_wait_3c : msg_wait_1c);
 		strcpy(buf_access, (inportb(0xA0) & 0x04) ? msg_access_16bit : msg_access_8bit);
 
@@ -477,12 +468,12 @@ void menu_backup(bool restore, bool erase) {
 	}
 }
 
-static const char __far msg_offset_from_end[] = "End Offset: %ld KB";
-static const char __far msg_kbytes[] = "Size: %ld KB";
-static const char __far msg_write_flash[] = "Write Flash...";
-static const char __far msg_flash_mode_regular[] = "Mode: Regular";
-static const char __far msg_flash_mode_wonderwitch[] = "Mode: WonderWitch";
-static const char __far msg_flash_mode_flashmasta[] = "Mode: WSFM";
+static const char msg_offset_from_end[] = "End Offset: %ld KB";
+static const char msg_kbytes[] = "Size: %ld KB";
+static const char msg_write_flash[] = "Write Flash...";
+static const char msg_flash_mode_regular[] = "Mode: Regular";
+static const char msg_flash_mode_wonderwitch[] = "Mode: WonderWitch";
+static const char msg_flash_mode_flashmasta[] = "Mode: WSFM";
 
 // return offset
 static uint16_t xmf_acquire_kbyte(uint16_t kbyte) {
@@ -492,7 +483,7 @@ static uint16_t xmf_acquire_kbyte(uint16_t kbyte) {
 	return (kbyte << 10);
 }
 
-uint8_t __far* xmf_write(uint16_t block, uint16_t subblock) {
+uint8_t* xmf_write(uint16_t block, uint16_t subblock) {
 	return xmb_buffer;
 }
 
@@ -534,8 +525,8 @@ void menu_flash(void) {
 	state.entries = entries; state.entry_count = entry_count;	
 	ui_menu_init(&state);
 	while (true) {
-		npf_snprintf(buf_offset_from_end, sizeof(buf_offset_from_end), msg_offset_from_end, offset_from_end);
-		npf_snprintf(buf_kbytes, sizeof(buf_kbytes), msg_kbytes, kbytes);
+		snprintf(buf_offset_from_end, sizeof(buf_offset_from_end), msg_offset_from_end, offset_from_end);
+		snprintf(buf_kbytes, sizeof(buf_kbytes), msg_kbytes, kbytes);
 		switch (mode) {
 			case 0: entries[2].text = msg_flash_mode_regular; break;
 			case 1: entries[2].text = msg_flash_mode_wonderwitch; break;
@@ -611,7 +602,7 @@ uint16_t menu_show_main(void) {
 	return result;
 }
 
-static const char __far msg_ipl_locked[] = "IPL locked - cannot transfer. Make sure to launch WS Backup Tool using installed BootFriend or another method which preserves an unlocked IPL.";
+static const char msg_ipl_locked[] = "IPL locked - cannot transfer. Make sure to launch WS Backup Tool using installed BootFriend or another method which preserves an unlocked IPL.";
 
 bool check_transfer_ipl(void) {
 	bool ipl_locked = inportb(IO_SYSTEM_CTRL1) & SYSTEM_CTRL1_IPL_LOCKED;
@@ -650,7 +641,7 @@ void menu_main(void) {
 	}
 }
 
-static const char __far msg_title[] = "-= WS Backup Tool v0.1.5 =-";
+static const char msg_title[] = "-= WS Backup Tool v0.1.5 =-";
 
 int main(void) {
 	cpu_irq_disable();

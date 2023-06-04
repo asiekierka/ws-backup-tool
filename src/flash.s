@@ -15,7 +15,7 @@
  * with WS Backup Tool. If not, see <https://www.gnu.org/licenses/>. 
  */
 
-#include <wonderful-asm.h>
+#include <wonderful.h>
 
 	.arch	i186
 	.code16
