@@ -325,6 +325,10 @@ void xmb_eeprom_write_finish(uint16_t block, uint16_t subblock) {
 	ws_eeprom_write_lock(h);
 }
 
+static const uint16_t rom_bank_values[] = {
+	2, 4, 8, 16, 32, 48, 64, 96, 128, 256, 512, 1024
+};
+
 void menu_backup(bool restore, bool erase) {
 	char buf_rom[21], buf_sram[21], buf_eeprom[21], buf_wait[15], buf_access[15];
 	menu_state_t state;
@@ -374,20 +378,9 @@ void menu_backup(bool restore, bool erase) {
 	outportw(IO_BANK_2003_RAM, 0xFFFF);
 	outportb(IO_BANK_RAM, 0xFF);
 
-	switch (*((uint8_t __far*) MK_FP(0x2FFF, 0xA))) {
-	case 0: rom_banks = 2; break;
-	case 1: rom_banks = 4; break;
-	case 2: rom_banks = 8; break;
-	case 3: rom_banks = 16; break;
-	case 4: rom_banks = 32; break;
-	case 5: rom_banks = 48; break;
-	case 6: rom_banks = 64; break;
-	case 7: rom_banks = 96; break;
-	case 8: rom_banks = 128; break;
-	case 9: rom_banks = 256; break;
-	case 10: rom_banks = 512; break;
-	case 11: rom_banks = 1024; break;
-	}
+	uint8_t rom_bank_idx = *((uint8_t __far*) MK_FP(0x2FFF, 0xA));
+	if (rom_bank_idx <= 11) rom_banks = rom_bank_values[rom_bank_idx];
+
 	switch (*((uint8_t __far*) MK_FP(0x2FFF, 0xB))) {
 	case 0x01: sram_kbytes = 8; break;
 	case 0x02: sram_kbytes = 32; break;
@@ -641,7 +634,7 @@ void menu_main(void) {
 	}
 }
 
-static const char msg_title[] = "-= WS Backup Tool v0.1.5 =-";
+static const char msg_title[] = "-= WS Backup Tool v0.1.6 =-";
 
 int main(void) {
 	cpu_irq_disable();
