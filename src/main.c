@@ -338,7 +338,7 @@ void menu_backup(bool restore, bool erase) {
 	uint32_t rom_banks = 256;
 	uint32_t sram_kbytes = 0;
 	uint32_t eeprom_bytes = 0;
-	
+
 	// generate menu entry list
 	if (!restore) {
 		entries[entry_count].text = buf_rom;
@@ -476,7 +476,7 @@ static uint16_t xmf_acquire_kbyte(uint16_t kbyte) {
 	return (kbyte << 10);
 }
 
-uint8_t* xmf_write(uint16_t block, uint16_t subblock) {
+uint8_t __far* xmf_write(uint16_t block, uint16_t subblock) {
 	return xmb_buffer;
 }
 
@@ -501,7 +501,7 @@ void menu_flash(void) {
 	uint32_t offset_from_end = 0;
 	uint32_t kbytes = 64;
 	uint8_t mode = 0;
-	
+
 	// generate menu entry list
 	entries[entry_count].text = buf_offset_from_end;
 	entries[entry_count++].flags = MENU_ENTRY_ADJUSTABLE | MENU_ENTRY_ADJUSTABLE_ADV;
@@ -515,7 +515,7 @@ void menu_flash(void) {
 	entries[entry_count++].flags = 0;
 	entries[entry_count].text = msg_return;
 	entries[entry_count++].flags = 0;
-	state.entries = entries; state.entry_count = entry_count;	
+	state.entries = entries; state.entry_count = entry_count;
 	ui_menu_init(&state);
 	while (true) {
 		snprintf(buf_offset_from_end, sizeof(buf_offset_from_end), msg_offset_from_end, offset_from_end);
@@ -634,7 +634,7 @@ void menu_main(void) {
 	}
 }
 
-static const char msg_title[] = "-= WS Backup Tool v0.1.6 =-";
+static const char msg_title[] = "-= WS Backup Tool v0.1.7 =-";
 
 int main(void) {
 	cpu_irq_disable();
