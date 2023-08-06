@@ -24,6 +24,9 @@
 
 vblank_int_handler:
 	pusha
+	push ds
+	push ss
+	pop ds
 
 	inc word ptr [vbl_ticks]
 	call vblank_input_update
@@ -32,5 +35,6 @@ vblank_int_handler:
 	mov al, 0x40
 	out 0xB6, al
 
+	pop ds
 	popa
 	iret
