@@ -34,7 +34,7 @@ LIBDIRS		:= $(WF_TARGET_DIR)
 
 BUILDDIR	:= build
 ELF		:= build/$(NAME).elf
-MAP		:= build/$(NAME).map
+ELF_STAGE1	:= build/$(NAME)_stage1.elf
 EXECUTABLE	:= $(NAME).bfb
 
 # Verbose flag
@@ -67,13 +67,12 @@ INCLUDEFLAGS	:= $(foreach path,$(INCLUDEDIRS),-I$(path)) \
 LIBDIRSFLAGS	:= $(foreach path,$(LIBDIRS),-L$(path)/lib)
 
 ASFLAGS		+= -x assembler-with-cpp $(DEFINES) $(WF_ARCH_CFLAGS) \
-		   $(INCLUDEFLAGS) -ffunction-sections
+		   $(INCLUDEFLAGS) -ffunction-sections -fdata-sections -fno-common
 
 CFLAGS		+= -std=gnu11 $(WARNFLAGS) $(DEFINES) $(WF_ARCH_CFLAGS) \
-		   $(INCLUDEFLAGS) -ffunction-sections -Os
+		   $(INCLUDEFLAGS) -ffunction-sections -fdata-sections -fno-common -Os -g
 
-LDFLAGS		:= -T$(WF_LDSCRIPT) \
-		   $(LIBDIRSFLAGS) -Wl,-Map,$(MAP) -Wl,--gc-sections \
+LDFLAGS		:= -T$(WF_LDSCRIPT) $(LIBDIRSFLAGS) -Wl,--gc-sections -fno-common \
 		   $(WF_ARCH_LDFLAGS) $(LIBS)
 
 # Intermediate build files
@@ -97,13 +96,13 @@ DEPS		:= $(OBJS:.o=.d)
 
 all: $(EXECUTABLE)
 
-$(EXECUTABLE): $(ELF)
-	@echo "  OBJCOPY $@"
-	$(_V)$(OBJCOPY) -O binary $< $@
+$(EXECUTABLE): $(ELF_STAGE1)
+	@echo "  EXE     $@"
+	$(_V)$(BUILDBFB) -o $(EXECUTABLE) --output-elf $(ELF) $(BUILDGATEFLAGS) $<
 
-$(ELF): $(OBJS)
+$(ELF_STAGE1): $(OBJS)
 	@echo "  LD      $@"
-	$(_V)$(CC) -o $@ $(OBJS) $(WF_CRT0) $(LDFLAGS)
+	$(_V)$(CC) -r -o $@ $(OBJS) $(WF_CRT0) $(LDFLAGS)
 
 clean:
 	@echo "  CLEAN"
