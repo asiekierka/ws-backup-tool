@@ -28,9 +28,9 @@ _driver_reset_flash:
 	push ds
 	mov ax, 0x1000
 	mov ds, ax
-	mov byte ptr [0xAAA], 0xAA
-	mov byte ptr [0x555], 0x55
-	mov byte ptr [0x000], 0xF0
+	mov byte ptr [0xAAAA], 0xAA
+	mov byte ptr [0x5555], 0x55
+	mov byte ptr [0xAAAA], 0xF0
 	pop ds
 	ret
 
@@ -61,7 +61,7 @@ flash_write:
 	mov ds, bx
 	mov bx, 0x1000
 	mov es, bx
-	mov bx, 0xAAA
+	mov bx, 0xAAAA
 
 	mov ax, [bp + 14]
 	cmp al, 2
@@ -75,7 +75,7 @@ flash_write_slow:
 flash_write_slow_loop:
 	mov byte ptr es:[bx], 0xAA
 	nop
-	mov byte ptr es:[0x555], 0x55
+	mov byte ptr es:[0x5555], 0x55
 	nop
 	mov byte ptr es:[bx], 0xA0
 	nop
@@ -91,7 +91,7 @@ flash_write_slow_loop:
 flash_write_fast_wonderwitch:
 	// start bypass
 	mov byte ptr es:[bx], 0xAA
-	mov byte ptr es:[0x555], 0x55
+	mov byte ptr es:[0x5555], 0x55
 	mov byte ptr es:[bx], 0x20
 
 	xor bx, bx
@@ -115,7 +115,7 @@ flash_write_fast_wonderwitch_loop:
 flash_write_fast_flashmasta:
 	// start bypass
 	mov byte ptr es:[bx], 0xAA
-	mov byte ptr es:[0x555], 0x55
+	mov byte ptr es:[0x5555], 0x55
 	mov byte ptr es:[bx], 0x20
 
 	xor bx, bx
@@ -135,9 +135,9 @@ flash_write_fast_flashmasta_loop:
 	mov byte ptr [bx], 0x00
 
 	// reset
-	mov byte ptr [0xAAA], 0xAA
-	mov byte ptr [0x555], 0x55
-	mov byte ptr [0x000], 0xF0
+	mov byte ptr [0xAAAA], 0xAA
+	mov byte ptr [0x5555], 0x55
+	mov byte ptr [0xAAAA], 0xF0
 
 flash_write_end:
 	pop	bp
@@ -156,8 +156,8 @@ flash_erase:
 	// execute erase command
 	mov bx, 0x1000
 	mov ds, bx
-	mov bx, 0xAAA
-	mov si, 0x555
+	mov bx, 0xAAAA
+	mov si, 0x5555
 
 	mov byte ptr [bx], 0xAA
 	mov byte ptr [si], 0x55
