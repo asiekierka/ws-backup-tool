@@ -109,7 +109,7 @@ void ui_init(void) {
 static void ui_menu_draw_entry(menu_entry_t *entry, uint8_t y, bool selected) {
     uint8_t color = selected ? COLOR_SELECTED : (entry->flags & MENU_ENTRY_DISABLED ? COLOR_GRAY : COLOR_BLACK);
     uint16_t prefix = SCR_ENTRY_PALETTE(color);
-    ws_screen_fill_tiles(SCREEN1, SCR_ENTRY_PALETTE(color), 0, y, 28, 1);
+    ws_screen_fill_tiles(SCREEN1, prefix, 0, y, 28, 1);
     ui_puts((28 - strlen(entry->text) + 1) >> 1, y, color, entry->text);
 }
 
@@ -156,6 +156,9 @@ uint16_t ui_menu_run(menu_state_t *state, uint8_t y) {
         } else if (input_pressed & KEY_DOWN) {
             new_entry = curr_entry + 1;
             while (new_entry < state->entry_count && (state->entries[new_entry].flags & MENU_ENTRY_DISABLED)) new_entry++;
+        } else if (input_pressed & KEY_B) {
+            new_entry = state->entry_count - 1;
+            while (new_entry >= 0 && (state->entries[new_entry].flags & MENU_ENTRY_DISABLED)) new_entry--;
         }
 
         if (new_entry != curr_entry && new_entry >= 0 && new_entry < state->entry_count) {

@@ -634,7 +634,7 @@ void menu_main(void) {
 	}
 }
 
-static const char msg_title[] = "-= WS Backup Tool v0.1.8 =-";
+static const char msg_title[] = "-= WS Backup Tool v0.1.9 =-";
 
 int main(void) {
 	cpu_irq_disable();
