@@ -192,7 +192,8 @@ static bool menu_manip_value(uint32_t *value, uint32_t command,
 	int32_t min_value, int32_t max_value,
 	int32_t prev_value, int32_t next_value,
 	int32_t prev_value_fine, int32_t next_value_fine,
-	int32_t prev_value_coarse, int32_t next_value_coarse
+	int32_t prev_value_coarse, int32_t next_value_coarse,
+	bool allow_zeroing
 ) {
 	int32_t new_value = *value;
 	switch (command & 0xFF00) {
@@ -211,8 +212,12 @@ static bool menu_manip_value(uint32_t *value, uint32_t command,
 	case RESULT_ADJUST_FINE_RIGHT: new_value = next_value_fine; break;
 	default: return false;
 	}
-	if (new_value < min_value) new_value = min_value;
-	else if (new_value > max_value) new_value = max_value;
+	if (new_value < min_value) {
+		if (allow_zeroing && new_value < *value)
+			new_value = 0;
+		else
+			new_value = min_value;
+	} else if (new_value > max_value) new_value = max_value;
 	*value = new_value;
 	return true;
 }
@@ -412,18 +417,18 @@ void menu_backup(bool restore, bool erase) {
 			menu_manip_value(&rom_banks, result, 1, 1024,
 				rom_banks >> 1, rom_banks << 1,
 				rom_banks - 1, rom_banks + 1,
-				rom_banks - 16, rom_banks + 16);
+				rom_banks - 16, rom_banks + 16, false);
 		} break;
 		case 1: {
 			menu_manip_value(&sram_kbytes, result, 8, 65536,
 				sram_kbytes >> 1, sram_kbytes << 1,
 				sram_kbytes - 8, sram_kbytes + 8,
-				sram_kbytes - 64, sram_kbytes + 64);
+				sram_kbytes - 64, sram_kbytes + 64, true);
 		} break;
 		case 2: {
 			menu_manip_value(&eeprom_bytes, result, 128, 2048,
 				eeprom_bytes >> 1, eeprom_bytes << 1,
-				0, 0, 0, 0);
+				0, 0, 0, 0, true);
 		} break;
 		case 3: {
 			outportb(0xA0, inportb(0xA0) ^ 0x08);
@@ -532,13 +537,13 @@ void menu_flash(void) {
 			menu_manip_value(&offset_from_end, result, 0, 65535,
 				offset_from_end - 64, offset_from_end + 64,
 				offset_from_end - 1, offset_from_end + 1,
-				offset_from_end - 1024, offset_from_end + 1024);
+				offset_from_end - 1024, offset_from_end + 1024, false);
 			break;
 		case 1:
 			menu_manip_value(&kbytes, result, 1, 8192,
 				kbytes >> 1, kbytes << 1,
 				kbytes - 1, kbytes + 1,
-				kbytes - 64, kbytes + 64);
+				kbytes - 64, kbytes + 64, false);
 			break;
 		case 2:
 			mode = (mode + 1) % 3;
