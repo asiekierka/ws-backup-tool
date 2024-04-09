@@ -382,7 +382,7 @@ void menu_backup(bool restore, bool erase) {
 	if (rom_bank_idx <= 11) rom_banks = rom_bank_values[rom_bank_idx];
 
 	switch (*((uint8_t __far*) MK_FP(0x2FFF, 0xB))) {
-	case 0x01: sram_kbytes = 8; break;
+	case 0x01:
 	case 0x02: sram_kbytes = 32; break;
 	case 0x03: sram_kbytes = 128; break;
 	case 0x04: sram_kbytes = 256; break;
@@ -634,7 +634,7 @@ void menu_main(void) {
 	}
 }
 
-static const char msg_title[] = "-= WS Backup Tool v0.1.9 =-";
+static const char msg_title[] = "-= WS Backup Tool v0.2.0 =-";
 
 int main(void) {
 	cpu_irq_disable();
