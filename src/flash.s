@@ -64,6 +64,8 @@ flash_write:
 	mov bx, 0xAAAA
 
 	mov ax, [bp + 14]
+	cmp al, 3
+	je flash_write_fast_mx29l
 	cmp al, 2
 	je flash_write_fast_flashmasta
 	cmp al, 1
@@ -88,6 +90,41 @@ flash_write_slow_loop:
 
 	jmp flash_write_end
 
+	// === MX29L ===
+
+flash_write_fast_mx29l:
+	mov byte ptr es:[bx], 0xAA
+	mov byte ptr es:[0x5555], 0x55
+	mov byte ptr es:[bx], 0xA0
+
+	push di
+	cld
+	rep movsb
+
+	// wait at least 100us
+	mov cx, 200
+flash_write_fast_mx29l_loop:
+	nop
+	loop flash_write_fast_mx29l_loop
+
+	pop di
+
+flash_write_fast_mx29l_wait:
+	mov al, byte ptr es:[di]
+	test al, 0x80
+	jz flash_write_fast_mx29l_wait
+
+	push es
+	pop ds
+
+	mov byte ptr es:[bx], 0xAA
+	mov byte ptr es:[0x5555], 0x55
+	mov byte ptr es:[bx], 0xF0
+
+	jmp flash_write_end
+
+	// === WonderWitch (MBM29DL400BC) ===
+
 flash_write_fast_wonderwitch:
 	// start bypass
 	mov byte ptr es:[bx], 0xAA
@@ -111,6 +148,8 @@ flash_write_fast_wonderwitch_loop:
 	mov byte ptr [bx], 0xF0
 
 	jmp flash_write_end
+
+	// === WSFM (JS28F00) ===
 
 flash_write_fast_flashmasta:
 	// start bypass
