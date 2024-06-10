@@ -472,6 +472,11 @@ static const char msg_write_flash[] = "Write Flash...";
 static const char msg_flash_mode_regular[] = "Mode: Regular";
 static const char msg_flash_mode_wonderwitch[] = "Mode: WonderWitch";
 static const char msg_flash_mode_flashmasta[] = "Mode: WSFM";
+static const char msg_flash_mode_mx29l[] = "Mode: MX29L";
+static const char msg_flash_warn_bootable[]     = "Header bootable";
+static const char msg_flash_warn_unbootable_1[] = "Warning: Header not bootable";
+static const char msg_flash_warn_unbootable_2[] = "Console will not boot with";
+static const char msg_flash_warn_unbootable_3[] = "this cartridge inserted.";
 
 // return offset
 static uint16_t xmf_acquire_kbyte(uint16_t kbyte) {
@@ -493,6 +498,8 @@ void xmf_erase_finish(uint16_t block, uint16_t subblock) {
 }
 
 void xmf_write_finish(uint16_t block, uint16_t subblock) {
+	// NOTES:
+	// - MX29L expects writes within a 256-byte page
 	uint16_t offset = xmf_acquire_kbyte(block);
 	flash_write(xmb_buffer, offset + (subblock << 7), 128, xmb_mode);
 }
@@ -501,11 +508,29 @@ void menu_flash(void) {
 	char buf_offset_from_end[30], buf_kbytes[30];
 	menu_state_t state;
 	menu_entry_t entries[6];
-	uint8_t entry_count = 0;
+	uint8_t entry_count;
 
 	uint32_t offset_from_end = 0;
 	uint32_t kbytes = 64;
 	uint8_t mode = 0;
+
+menu_flash_init:
+	entry_count = 0;
+
+	outportw(IO_BANK_2003_ROM0, 0xFFFF);
+	outportb(IO_BANK_ROM0, 0xFF);
+	outportw(IO_BANK_2003_RAM, 0xFFFF);
+	outportb(IO_BANK_RAM, 0xFF);
+
+	// check bootability
+	uint8_t __far *rom_header = MK_FP(0x2FFF, 0);
+	if (rom_header[0] != 0xEA || (rom_header[5] & 0xF)) {
+		ui_puts_centered(15, COLOR_RED, msg_flash_warn_unbootable_1);
+		ui_puts_centered(16, COLOR_RED, msg_flash_warn_unbootable_2);
+		ui_puts_centered(17, COLOR_RED, msg_flash_warn_unbootable_3);
+	} else {
+		ui_puts_centered(16, 0, msg_flash_warn_bootable);
+	}
 
 	// generate menu entry list
 	entries[entry_count].text = buf_offset_from_end;
@@ -529,6 +554,7 @@ void menu_flash(void) {
 			case 0: entries[2].text = msg_flash_mode_regular; break;
 			case 1: entries[2].text = msg_flash_mode_wonderwitch; break;
 			case 2: entries[2].text = msg_flash_mode_flashmasta; break;
+			case 3: entries[2].text = msg_flash_mode_mx29l; break;
 		}
 
 		uint16_t result = ui_menu_run(&state, 3 + ((14 - entry_count) >> 1));
@@ -546,9 +572,11 @@ void menu_flash(void) {
 				kbytes - 64, kbytes + 64, false);
 			break;
 		case 2:
-			mode = (mode + 1) % 3;
+			mode = (mode + 1) % 4;
 			break;
 		case 4:
+			ui_clear_lines(3, 17);
+
 			xmb_offset = (offset_from_end ^ 0xFFFF) - (kbytes - 1);
 			xmb_mode = mode;
 
@@ -558,7 +586,7 @@ void menu_flash(void) {
 			xmodem_run_recv(xmf_write, xmf_write_finish, kbytes, 8, false);
 
 			outportb(IO_CART_FLASH, 0x00);
-			break;
+			goto menu_flash_init;
 		case 5:
 			return;
 		}
@@ -639,7 +667,7 @@ void menu_main(void) {
 	}
 }
 
-static const char msg_title[] = "-= WS Backup Tool v0.2.0 =-";
+static const char msg_title[] = "-= WS Backup Tool v0.2.1 =-";
 
 int main(void) {
 	cpu_irq_disable();

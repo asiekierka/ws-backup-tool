@@ -23,6 +23,7 @@
 #define FLASH_MODE_SLOW 0x00
 #define FLASH_MODE_FAST_WONDERWITCH 0x01
 #define FLASH_MODE_FAST_FLASHMASTA 0x02
+#define FLASH_MODE_FAST_MX29L 0x03
 
 bool flash_write(const void *data, uint16_t offset, uint16_t len, uint16_t mode);
 bool flash_erase(uint16_t offset, uint16_t mode);
