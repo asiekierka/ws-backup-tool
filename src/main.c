@@ -472,7 +472,7 @@ static const char msg_write_flash[] = "Write Flash...";
 static const char msg_flash_mode_regular[] = "Mode: Regular";
 static const char msg_flash_mode_wonderwitch[] = "Mode: WonderWitch";
 static const char msg_flash_mode_flashmasta[] = "Mode: WSFM";
-static const char msg_flash_mode_mx29l[] = "Mode: MX29L";
+static const char msg_flash_mode_mx29l3211[] = "Mode: MX29L3211";
 static const char msg_flash_warn_bootable[]     = "Header bootable";
 static const char msg_flash_warn_unbootable_1[] = "Warning: Header not bootable";
 static const char msg_flash_warn_unbootable_2[] = "Console will not boot with";
@@ -499,7 +499,7 @@ void xmf_erase_finish(uint16_t block, uint16_t subblock) {
 
 void xmf_write_finish(uint16_t block, uint16_t subblock) {
 	// NOTES:
-	// - MX29L expects writes within a 256-byte page
+	// - MX29L3211 expects writes within a 256-byte page
 	uint16_t offset = xmf_acquire_kbyte(block);
 	flash_write(xmb_buffer, offset + (subblock << 7), 128, xmb_mode);
 }
@@ -554,7 +554,7 @@ menu_flash_init:
 			case 0: entries[2].text = msg_flash_mode_regular; break;
 			case 1: entries[2].text = msg_flash_mode_wonderwitch; break;
 			case 2: entries[2].text = msg_flash_mode_flashmasta; break;
-			case 3: entries[2].text = msg_flash_mode_mx29l; break;
+			case 3: entries[2].text = msg_flash_mode_mx29l3211; break;
 		}
 
 		uint16_t result = ui_menu_run(&state, 3 + ((14 - entry_count) >> 1));
