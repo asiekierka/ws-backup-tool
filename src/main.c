@@ -154,9 +154,7 @@ void xmodem_run_recv(xmodem_block_writer writer, xmodem_block_writer_finish wrf,
 					wrf(ib, isb);
 				} else {
 					uint8_t __far* block_buffer = writer(ib, isb);
-					if(ack_previous) {
-						xmodem_recv_ack();
-					} else {
+					if(!ack_previous) {
 						xmodem_recv_start();
 					}
 					uint8_t result = xmodem_recv_block(block_buffer);
@@ -179,7 +177,6 @@ void xmodem_run_recv(xmodem_block_writer writer, xmodem_block_writer_finish wrf,
 				}
 			}
 		}
-		if(!erase) xmodem_recv_ack();
 	}
 End:
 	ws_hwint_ack(0xFF);
