@@ -37,7 +37,8 @@ static const char msg_yes[] = "Yes";
 static const char msg_no[] = "No";
 
 static inline void xmodem_open_default() {
-	xmodem_open(xm_baudrate);
+	outportb(0xA3, xm_baudrate == 2 ? 0x08 : 0x00);
+	xmodem_open(xm_baudrate ? SERIAL_BAUD_38400 : SERIAL_BAUD_9600);
 }
 
 static const char msg_xmodem_init[] = "Initializing XMODEM transfer";
@@ -243,8 +244,9 @@ static const char msg_backup[] = "Cart Backup \x10";
 static const char msg_restore[] = "Cart Restore \x10";
 static const char msg_erase[] = "Cart Erase \x10";
 static const char msg_flash[] = "Cart Flash (Expert) \x10";
-static const char msg_baud_38400[] = "Serial: 38400 bps";
-static const char msg_baud_9600[] = "Serial: .9600 bps";
+static const char msg_baud_192000[] = "Serial: 192000 bps";
+static const char msg_baud_38400[] = "Serial: .38400 bps";
+static const char msg_baud_9600[] = "Serial: ..9600 bps";
 
 static const char msg_none[] = "";
 static const char msg_rom_full[] = "ROM: %ld Mbit";
@@ -613,10 +615,13 @@ uint16_t menu_show_main(void) {
 	uint16_t result;
 	bool active = true;
 	while (active) {	
-		entries[entry_count - 1].text = (xm_baudrate == SERIAL_BAUD_38400) ? msg_baud_38400 : msg_baud_9600;
+		entries[entry_count - 1].text = (xm_baudrate == 2) ? msg_baud_192000 : ((xm_baudrate == 1) ? msg_baud_38400 : msg_baud_9600);
 		result = ui_menu_run(&state, 3 + ((14 - entry_count) >> 1));
 		if (result == entry_count - 1) {
-			xm_baudrate ^= SERIAL_BAUD_38400;
+			if (xm_baudrate == 0)
+				xm_baudrate = 2;
+			else
+				xm_baudrate = xm_baudrate - 1;
 		} else {
 			active = false;
 		}
@@ -664,11 +669,11 @@ void menu_main(void) {
 	}
 }
 
-static const char msg_title[] = "-= WS Backup Tool v0.2.1 =-";
+static const char msg_title[] = "-= WS Backup Tool v0.2.2 =-";
 
 int main(void) {
 	cpu_irq_disable();
-	xm_baudrate = SERIAL_BAUD_38400;
+	xm_baudrate = 1;
 
 	ui_init();
 
