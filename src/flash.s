@@ -63,7 +63,7 @@ flash_write:
 	mov es, bx
 	mov bx, 0xAAAA
 
-	mov ax, [bp + WF_PLATFORM_CALL_STACK_OFFSET(10)]
+	mov ax, [bp + IA16_CALL_STACK_OFFSET(10)]
 	cmp al, 3
 	je flash_write_fast_mx29l
 	cmp al, 2
@@ -185,7 +185,7 @@ flash_write_end:
 	pop	di
 	pop	si
 
-	WF_PLATFORM_RET 0x2
+	IA16_RET 0x2
 
 	.align 2
 flash_erase:
@@ -221,4 +221,4 @@ flash_erase_busyloop:
 	pop si
 	pop ds
 
-	WF_PLATFORM_RET
+	IA16_RET
