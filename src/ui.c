@@ -19,9 +19,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <ws.h>
+#include <wsx/zx0.h>
+#include "font_default.h"
 #include "input.h"
 #include "ui.h"
-#include "font_default_bin.h"
 #include "util.h"
 
 static bool ui_is_space(char c) {
@@ -82,11 +83,7 @@ void ui_init(void) {
         while(1) cpu_halt();
     }
 
-    const uint8_t __far *src = font_default;
-    uint16_t *dst = (uint16_t*) 0x2000;
-    for (int i = 0; i < font_default_size; i++) {
-        *(dst++) = *(src++);
-    }
+    wsx_zx0_decompress((uint16_t*) 0x2000, gfx_font_default);
 
     ui_clear_lines(0, 17);
     outportb(IO_SCR_BASE, SCR1_BASE(0x1800));

@@ -14,9 +14,10 @@ NAME		:= ws-backup-tool
 # Source code paths
 # -----------------
 
-INCLUDEDIRS	:= src
+INCLUDEDIRS	:= include
 SOURCEDIRS	:= src
-CBINDIRS	:= res
+ASSETDIRS	:= assets
+CBINDIRS	:= cbin
 
 # Defines passed to all files
 # ---------------------------
@@ -27,7 +28,7 @@ DEFINES		:= -DLIBWS_API_COMPAT=202504L
 # ---------
 
 LIBS		:= -lwsx -lws
-LIBDIRS		:= $(WF_TARGET_DIR)
+LIBDIRS		:= $(WF_ARCH_LIBDIRS)
 
 # Build artifacts
 # ---------------
@@ -49,6 +50,10 @@ endif
 # Source files
 # ------------
 
+ifneq ($(ASSETDIRS),)
+    SOURCES_WFPROCESS	:= $(shell find -L $(ASSETDIRS) -name "*.lua")
+    INCLUDEDIRS		+= $(addprefix $(BUILDDIR)/,$(ASSETDIRS))
+endif
 ifneq ($(CBINDIRS),)
     SOURCES_CBIN	:= $(shell find -L $(CBINDIRS) -name "*.bin")
     INCLUDEDIRS		+= $(addprefix $(BUILDDIR)/,$(CBINDIRS))
@@ -62,7 +67,7 @@ SOURCES_C	:= $(shell find -L $(SOURCEDIRS) -name "*.c")
 WARNFLAGS	:= -Wall
 
 INCLUDEFLAGS	:= $(foreach path,$(INCLUDEDIRS),-I$(path)) \
-		   $(foreach path,$(LIBDIRS),-I$(path)/include)
+		   $(foreach path,$(LIBDIRS),-isystem $(path)/include)
 
 LIBDIRSFLAGS	:= $(foreach path,$(LIBDIRS),-L$(path)/lib)
 
@@ -78,9 +83,8 @@ LDFLAGS		:= -T$(WF_LDSCRIPT) $(LIBDIRSFLAGS) -Wl,--gc-sections -fno-common \
 # Intermediate build files
 # ------------------------
 
-OBJS_ASSETS	:= $(addsuffix .o,$(addprefix $(BUILDDIR)/,$(SOURCES_CBIN)))
-
-HEADERS_ASSETS	:= $(patsubst %.bin,%_bin.h,$(addprefix $(BUILDDIR)/,$(SOURCES_CBIN)))
+OBJS_ASSETS	:= $(addsuffix .o,$(addprefix $(BUILDDIR)/,$(SOURCES_CBIN))) \
+		   $(addsuffix .o,$(addprefix $(BUILDDIR)/,$(SOURCES_WFPROCESS)))
 
 OBJS_SOURCES	:= $(addsuffix .o,$(addprefix $(BUILDDIR)/,$(SOURCES_S))) \
 		   $(addsuffix .o,$(addprefix $(BUILDDIR)/,$(SOURCES_C)))
@@ -94,10 +98,10 @@ DEPS		:= $(OBJS:.o=.d)
 
 .PHONY: all clean
 
-all: $(EXECUTABLE)
+all: $(EXECUTABLE) compile_commands.json
 
 $(EXECUTABLE): $(ELF_STAGE1)
-	@echo "  EXE     $@"
+	@echo "  BFB     $@"
 	$(_V)$(BUILDBFB) -o $(EXECUTABLE) --output-elf $(ELF) $(BUILDGATEFLAGS) $<
 
 $(ELF_STAGE1): $(OBJS)
@@ -106,26 +110,36 @@ $(ELF_STAGE1): $(OBJS)
 
 clean:
 	@echo "  CLEAN"
-	$(_V)$(RM) $(EXECUTABLE) $(BUILDDIR)
+	$(_V)$(RM) $(EXECUTABLE) $(BUILDDIR) compile_commands.json
+
+compile_commands.json: $(OBJS) | Makefile
+	@echo "  MERGE   compile_commands.json"
+	$(_V)$(WF)/bin/wf-compile-commands-merge $@ $(patsubst %.o,%.cc.json,$^)
 
 # Rules
 # -----
 
-$(BUILDDIR)/%.s.o : %.s
+$(BUILDDIR)/%.s.o : %.s | $(OBJS_ASSETS)
 	@echo "  AS      $<"
 	@$(MKDIR) -p $(@D)
-	$(_V)$(CC) $(ASFLAGS) -MMD -MP -c -o $@ $<
+	$(_V)$(CC) $(ASFLAGS) -MMD -MP -MJ $(patsubst %.o,%.cc.json,$@) -c -o $@ $<
 
-$(BUILDDIR)/%.c.o : %.c
+$(BUILDDIR)/%.c.o : %.c | $(OBJS_ASSETS)
 	@echo "  CC      $<"
 	@$(MKDIR) -p $(@D)
-	$(_V)$(CC) $(CFLAGS) -MMD -MP -c -o $@ $<
+	$(_V)$(CC) $(CFLAGS) -MMD -MP -MJ $(patsubst %.o,%.cc.json,$@) -c -o $@ $<
 
 $(BUILDDIR)/%.bin.o $(BUILDDIR)/%_bin.h : %.bin
 	@echo "  BIN2C   $<"
 	@$(MKDIR) -p $(@D)
-	$(_V)$(WF)/bin/wf-bin2c -a 2 $(@D) $<
+	$(_V)$(WF)/bin/wf-bin2c -a 2 --address-space __far $(@D) $<
 	$(_V)$(CC) $(CFLAGS) -MMD -MP -c -o $(BUILDDIR)/$*.bin.o $(BUILDDIR)/$*_bin.c
+
+$(BUILDDIR)/%.lua.o : %.lua
+	@echo "  PROCESS $<"
+	@$(MKDIR) -p $(@D)
+	$(_V)$(WF)/bin/wf-process -o $(BUILDDIR)/$*.s -t $(TARGET) --depfile $(BUILDDIR)/$*.lua.d --depfile-target $(BUILDDIR)/$*.lua.o $<
+	$(_V)$(CC) $(ASFLAGS) -c -o $(BUILDDIR)/$*.lua.o $(BUILDDIR)/$*.s
 
 # Include dependency files if they exist
 # --------------------------------------

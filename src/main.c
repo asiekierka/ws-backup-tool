@@ -21,7 +21,7 @@
 #include <wonderful.h>
 #include <ws.h>
 #include "flash.h"
-#include "font_default_bin.h"
+#include "font_default.h"
 #include "input.h"
 #include "ui.h"
 #include "util.h"
