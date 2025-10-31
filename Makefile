@@ -4,6 +4,7 @@
 
 WONDERFUL_TOOLCHAIN ?= /opt/wonderful
 TARGET ?= wswan/bootfriend
+VERSION ?= dev
 include $(WONDERFUL_TOOLCHAIN)/target/$(TARGET)/makedefs.mk
 
 # Metadata
@@ -22,7 +23,7 @@ CBINDIRS	:= cbin
 # Defines passed to all files
 # ---------------------------
 
-DEFINES		:= -DLIBWS_API_COMPAT=202504L
+DEFINES		:= -DLIBWS_API_COMPAT=202504L -DVERSION=\"$(VERSION)\"
 
 # Libraries
 # ---------

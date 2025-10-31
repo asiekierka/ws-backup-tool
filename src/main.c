@@ -245,8 +245,8 @@ static const char msg_restore[] = "Cart Restore \x10";
 static const char msg_erase[] = "Cart Erase \x10";
 static const char msg_flash[] = "Cart Flash (Expert) \x10";
 static const char msg_baud_192000[] = "Serial: 192000 bps";
-static const char msg_baud_38400[] = "Serial: .38400 bps";
-static const char msg_baud_9600[] = "Serial: ..9600 bps";
+static const char msg_baud_38400[] = "Serial: _38400 bps";
+static const char msg_baud_9600[] = "Serial: __9600 bps";
 
 static const char msg_none[] = "";
 static const char msg_rom_full[] = "ROM: %ld Mbit";
@@ -630,7 +630,7 @@ uint16_t menu_show_main(void) {
 	return result;
 }
 
-static const char msg_ipl_locked[] = "IPL locked - cannot transfer. Make sure to launch WS Backup Tool using installed BootFriend or another method which preserves an unlocked IPL.";
+static const char msg_ipl_locked[] = "IPL locked - cannot transfer. Make sure to launch ws-backup-tool using installed BootFriend or another method which preserves an unlocked IPL.";
 
 bool check_transfer_ipl(void) {
 	bool ipl_locked = inportb(IO_SYSTEM_CTRL1) & SYSTEM_CTRL1_IPL_LOCKED;
@@ -669,7 +669,7 @@ void menu_main(void) {
 	}
 }
 
-static const char msg_title[] = "-= WS Backup Tool v0.2.2 =-";
+static const char msg_title[] = "-= ws-backup-tool " VERSION " =-";
 
 int main(void) {
 	cpu_irq_disable();
